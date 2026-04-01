@@ -1,4 +1,15 @@
+import { WalletButton } from './features/wallet/WalletButton'
+import { useWallet } from './features/wallet/WalletContext'
+import { WalletModal } from './features/wallet/WalletModal'
+import {
+  ESCROW_PROGRAM_ADDRESS,
+  getExplorerUrl,
+} from './lib/solana/constants'
+
 function App() {
+  const { account, connectedWallet, error, isModalOpen, wallets, closeModal } =
+    useWallet()
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.16),_transparent_36%),linear-gradient(180deg,_#0a1017_0%,_#111827_48%,_#f3f4f6_48%,_#f8fafc_100%)] text-slate-950">
       <section className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 sm:px-8 lg:px-10">
@@ -6,9 +17,7 @@ function App() {
           <div className="font-semibold tracking-[0.24em] text-teal-300 uppercase">
             SPL Escrow
           </div>
-          <div className="rounded-full border border-teal-400/30 bg-teal-400/10 px-3 py-1 text-xs font-medium text-teal-100">
-            Devnet Setup In Progress
-          </div>
+          <WalletButton />
         </header>
 
         <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:py-14">
@@ -18,12 +27,13 @@ function App() {
             </p>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-5xl leading-none font-semibold tracking-tight text-balance sm:text-6xl">
-                Frontend foundation for a Solana SPL-token escrow on Devnet.
+                Wallet-ready frontend foundation for a Solana SPL-token escrow.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                This repository now has the initial Vite, React, TypeScript, and
-                Tailwind setup. The next implementation step is wiring wallet
-                detection, escrow instructions, and real Devnet transaction flows.
+                The app now detects injected Solana wallets through Wallet
+                Standard and uses a custom connection modal. Next we can wire
+                escrow instructions, token accounts, and live Devnet
+                transactions.
               </p>
             </div>
 
@@ -40,19 +50,46 @@ function App() {
               <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-100">
                 Tailwind CSS
               </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-100">
+                Wallet Standard
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-100">
+                @solana/kit
+              </span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                <div className="text-sm text-slate-400">Detected wallets</div>
+                <div className="mt-2 text-3xl font-semibold text-white">
+                  {wallets.length}
+                </div>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                <div className="text-sm text-slate-400">Connection state</div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {connectedWallet && account ? 'Connected' : 'Waiting'}
+                </div>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                <div className="text-sm text-slate-400">Network</div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  Solana Devnet
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="grid gap-4">
             <article className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
               <p className="text-sm font-medium tracking-[0.24em] text-slate-500 uppercase">
-                Current scope
+                Wallet layer
               </p>
               <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-                <li>Custom wallet modal with detected providers</li>
-                <li>Make-offer form for Token A and Token B swap terms</li>
-                <li>Open offers list with take-offer flow</li>
-                <li>Devnet transaction status, errors, and Explorer links</li>
+                <li>Custom modal with detected injected wallets</li>
+                <li>Connect and disconnect flow without third-party wallet UI</li>
+                <li>Preferred wallet persistence between reloads</li>
+                <li>Ready foundation for transaction signing with Solana wallets</li>
               </ul>
             </article>
 
@@ -65,16 +102,38 @@ function App() {
               </p>
               <a
                 className="mt-5 inline-flex items-center rounded-full bg-teal-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-900"
-                href="https://explorer.solana.com/address/4g5EN9Sk7wEcZqfjdjDtvq7T9u5YUrBKTe23fVJoL8yy?cluster=devnet"
+                href={getExplorerUrl(`/address/${ESCROW_PROGRAM_ADDRESS}`)}
                 target="_blank"
                 rel="noreferrer"
               >
                 View Program On Explorer
               </a>
             </article>
+
+            <article className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
+              <p className="text-sm font-medium tracking-[0.24em] text-slate-500 uppercase">
+                Session
+              </p>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
+                <div>
+                  <span className="font-medium text-slate-950">Wallet:</span>{' '}
+                  {connectedWallet?.name ?? 'Not connected'}
+                </div>
+                <div>
+                  <span className="font-medium text-slate-950">Account:</span>{' '}
+                  {account?.address ?? 'No account selected'}
+                </div>
+                <div>
+                  <span className="font-medium text-slate-950">Last error:</span>{' '}
+                  {error?.message ?? 'None'}
+                </div>
+              </div>
+            </article>
           </div>
         </section>
       </section>
+
+      <WalletModal onClose={closeModal} open={isModalOpen} />
     </main>
   )
 }

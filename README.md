@@ -8,6 +8,8 @@ Initial setup for a React frontend that will interact with an SPL-token escrow p
 - React
 - TypeScript
 - Tailwind CSS
+- `@solana/kit`
+- Wallet Standard (`@wallet-standard/app`, `@solana/wallet-standard-features`)
 
 ## Getting Started
 
@@ -25,16 +27,19 @@ npm run dev
 
 ## Current Status
 
-This repository currently includes the initial frontend scaffold and project planning files:
+This repository currently includes:
 
 - [TASK.md](./TASK.md)
 - [PLAN.md](./PLAN.md)
+- Solana Devnet RPC foundation via `@solana/kit`
+- custom wallet modal with Wallet Standard detection
+- wallet connect and disconnect state
+- selected wallet persistence between reloads
 
 Next major steps:
 
-- add Solana Devnet client integration via `@solana/kit`
-- implement a custom wallet connection modal
 - build `make_offer` and `take_offer` flows
+- fetch connected wallet token accounts
 - list open offers created through the frontend
 - add transaction success and error handling UX
 
