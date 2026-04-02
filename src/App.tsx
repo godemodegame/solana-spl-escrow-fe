@@ -1,3 +1,4 @@
+import { MakeOfferForm } from './features/make-offer/MakeOfferForm'
 import { WalletButton } from './features/wallet/WalletButton'
 import { useWallet } from './features/wallet/WalletContext'
 import { WalletModal } from './features/wallet/WalletModal'
@@ -89,7 +90,7 @@ function App() {
                 <li>Custom modal with detected injected wallets</li>
                 <li>Connect and disconnect flow without third-party wallet UI</li>
                 <li>Preferred wallet persistence between reloads</li>
-                <li>Ready foundation for transaction signing with Solana wallets</li>
+                <li>Transaction signing foundation and live make-offer flow</li>
               </ul>
             </article>
 
@@ -129,6 +130,8 @@ function App() {
                 </div>
               </div>
             </article>
+
+            <MakeOfferForm />
           </div>
         </section>
       </section>

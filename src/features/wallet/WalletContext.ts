@@ -14,6 +14,7 @@ export type WalletContextValue = {
   isModalOpen: boolean
   openModal: () => void
   closeModal: () => void
+  signAndSendTransaction: (transactionBytes: Uint8Array) => Promise<string>
   wallets: Wallet[]
 }
 

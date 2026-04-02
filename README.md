@@ -35,11 +35,13 @@ This repository currently includes:
 - custom wallet modal with Wallet Standard detection
 - wallet connect and disconnect state
 - selected wallet persistence between reloads
+- wallet token account discovery from Devnet
+- first live `make_offer` flow foundation with custom form and transaction link output
 
 Next major steps:
 
-- build `make_offer` and `take_offer` flows
-- fetch connected wallet token accounts
+- harden `make_offer` with more edge-case coverage after live wallet testing
+- build `take_offer` flow
 - list open offers created through the frontend
 - add transaction success and error handling UX
 

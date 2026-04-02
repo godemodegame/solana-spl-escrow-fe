@@ -10,8 +10,10 @@ import {
   StandardEvents,
 } from '@wallet-standard/features'
 import {
+  type SolanaSignAndSendTransactionFeature,
   SolanaSignAndSendTransaction,
   SolanaSignMessage,
+  type SolanaSignTransactionFeature,
   SolanaSignTransaction,
 } from '@solana/wallet-standard-features'
 
@@ -32,6 +34,18 @@ export function getWalletDisconnectFeature(wallet: Wallet) {
 export function getWalletEventsFeature(wallet: Wallet) {
   return wallet.features[StandardEvents] as
     | StandardEventsFeature[typeof StandardEvents]
+    | undefined
+}
+
+export function getWalletSignAndSendFeature(wallet: Wallet) {
+  return wallet.features[SolanaSignAndSendTransaction] as
+    | SolanaSignAndSendTransactionFeature[typeof SolanaSignAndSendTransaction]
+    | undefined
+}
+
+export function getWalletSignTransactionFeature(wallet: Wallet) {
+  return wallet.features[SolanaSignTransaction] as
+    | SolanaSignTransactionFeature[typeof SolanaSignTransaction]
     | undefined
 }
 

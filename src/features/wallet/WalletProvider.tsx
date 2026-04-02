@@ -1,13 +1,20 @@
 import type { Wallet, WalletAccount } from '@wallet-standard/base'
 import { getWallets } from '@wallet-standard/app'
+import { getBase64Decoder } from '@solana/kit'
+import type { Base64EncodedWireTransaction } from '@solana/kit'
+import bs58 from 'bs58'
 import { useEffect, useState } from 'react'
 
 import type { WalletConnectionError } from '../../types/wallet'
+import { SOLANA_DEVNET_CHAIN } from '../../lib/solana/constants'
+import { rpc } from '../../lib/solana/rpc'
 import { WalletContext } from './WalletContext'
 import {
   getWalletConnectFeature,
   getWalletDisconnectFeature,
   getWalletEventsFeature,
+  getWalletSignAndSendFeature,
+  getWalletSignTransactionFeature,
   isSupportedWallet,
   pickWalletAccount,
 } from './wallet-standard'
@@ -177,6 +184,49 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
   }
 
+  async function signAndSendTransaction(transactionBytes: Uint8Array) {
+    if (!connectedWallet || !account) {
+      throw new Error('Connect a wallet before sending a transaction.')
+    }
+
+    const signAndSendFeature = getWalletSignAndSendFeature(connectedWallet)
+    if (signAndSendFeature) {
+      const [result] = await signAndSendFeature.signAndSendTransaction({
+        account,
+        chain: SOLANA_DEVNET_CHAIN,
+        transaction: transactionBytes,
+      })
+
+      return bs58.encode(result.signature)
+    }
+
+    const signTransactionFeature = getWalletSignTransactionFeature(connectedWallet)
+    if (!signTransactionFeature) {
+      throw new Error(
+        `${connectedWallet.name} does not support transaction signing on Solana.`,
+      )
+    }
+
+    const [signedTransaction] = await signTransactionFeature.signTransaction({
+      account,
+      chain: SOLANA_DEVNET_CHAIN,
+      transaction: transactionBytes,
+    })
+
+    const signature = await rpc
+      .sendTransaction(
+        getBase64Decoder().decode(
+          new Uint8Array(signedTransaction.signedTransaction),
+        ) as Base64EncodedWireTransaction,
+        {
+          encoding: 'base64',
+        },
+      )
+      .send()
+
+    return signature
+  }
+
   return (
     <WalletContext.Provider
       value={{
@@ -190,6 +240,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         isModalOpen,
         openModal: () => setIsModalOpen(true),
         closeModal: () => setIsModalOpen(false),
+        signAndSendTransaction,
         wallets,
       }}
     >
