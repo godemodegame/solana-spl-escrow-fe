@@ -8,11 +8,11 @@ type ButtonProps = PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>> & 
 
 const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary:
-    'bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:bg-teal-500/50',
+    'retro-panel bg-[#d6dee8] text-slate-900 hover:bg-[#e2e8ef] disabled:text-slate-500',
   secondary:
-    'border border-slate-300 bg-white text-slate-950 hover:border-slate-400 hover:bg-slate-50 disabled:border-slate-200 disabled:text-slate-400',
+    'retro-panel bg-[#c9d3de] text-slate-900 hover:bg-[#d5dde7] disabled:text-slate-500',
   ghost:
-    'bg-transparent text-slate-200 hover:bg-white/10 disabled:text-slate-500',
+    'retro-panel bg-[#c9d3de] text-slate-900 hover:bg-[#d5dde7] disabled:text-slate-500',
 }
 
 export function Button({
@@ -25,7 +25,7 @@ export function Button({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed',
+        'inline-flex min-h-10 items-center justify-center px-4 py-2 text-sm font-bold tracking-[0.02em] disabled:cursor-not-allowed',
         variantClasses[variant],
         className,
       )}

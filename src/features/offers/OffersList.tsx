@@ -67,34 +67,33 @@ export function OffersList({ refreshKey = 0 }: OffersListProps) {
   }
 
   return (
-    <article className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium tracking-[0.24em] text-slate-500 uppercase">
-            Open Offers
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-            Take an offer from Devnet
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            These cards are fetched on-chain from the escrow program and filtered
-            to offers whose vault still holds Token A.
-          </p>
+    <article className="retro-window overflow-hidden">
+      <div className="retro-titlebar flex items-start justify-between gap-4 px-3 py-2 sm:px-4">
+        <div className="text-xs font-bold uppercase tracking-[0.16em]">
+          Open Offers
         </div>
-
         <Button disabled={isLoading} onClick={() => void loadOffers()} variant="secondary">
           {isLoading ? 'Refreshing...' : 'Refresh'}
         </Button>
       </div>
 
+      <div className="p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+            Take an offer from Devnet
+          </h2>
+        </div>
+      </div>
+
       {error ? (
-        <div className="mt-5 rounded-3xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <div className="retro-inset mt-5 border-[color:#b75b5b] bg-[#f0d1d1] px-4 py-3 text-sm text-[#6d2020]">
           {error}
         </div>
       ) : null}
 
       {submittedTransaction ? (
-        <div className="mt-5 rounded-3xl border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-950">
+        <div className="retro-inset mt-5 border-[color:#578663] bg-[#d7e8d8] px-4 py-3 text-sm text-[#1d4d2a]">
           Transaction sent:{' '}
           <a
             className="font-medium underline"
@@ -109,7 +108,7 @@ export function OffersList({ refreshKey = 0 }: OffersListProps) {
 
       <div className="mt-6 grid gap-4">
         {!isLoading && offers.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-600">
+          <div className="retro-inset px-5 py-8 text-sm text-slate-600">
             No open offers found right now.
           </div>
         ) : null}
@@ -117,7 +116,7 @@ export function OffersList({ refreshKey = 0 }: OffersListProps) {
         {offers.map((offer) => (
           <article
             key={offer.address}
-            className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5"
+            className="retro-panel p-4 sm:p-5"
           >
             <div className="grid gap-3 text-sm leading-6 text-slate-700">
               <div>
@@ -143,7 +142,7 @@ export function OffersList({ refreshKey = 0 }: OffersListProps) {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <a
-                className="text-sm font-medium text-teal-700 underline"
+                className="retro-inset block max-w-full px-3 py-2 text-xs font-bold text-slate-700"
                 href={offer.address}
                 onClick={(event) => event.preventDefault()}
               >
@@ -158,6 +157,7 @@ export function OffersList({ refreshKey = 0 }: OffersListProps) {
             </div>
           </article>
         ))}
+      </div>
       </div>
     </article>
   )
