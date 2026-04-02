@@ -4,27 +4,52 @@ import {
   appendTransactionMessageInstruction,
   compileTransaction,
   createTransactionMessage,
+  fixCodecSize,
+  getAddressCodec,
   getAddressEncoder,
+  getBase64Encoder,
+  getBytesCodec,
   getProgramDerivedAddress,
+  getStructCodec,
   getTransactionEncoder,
+  getU8Codec,
+  getU64Codec,
   getU64Encoder,
   getUtf8Encoder,
   pipe,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit'
+import bs58 from 'bs58'
 
-import type { SubmittedTransaction, WalletTokenAccount } from '../../types/escrow'
-import { parseTokenAmount } from '../utils/amounts'
+import type {
+  OfferViewModel,
+  SubmittedTransaction,
+  WalletTokenAccount,
+} from '../../types/escrow'
+import { formatTokenAmount, parseTokenAmount } from '../utils/amounts'
 import { ESCROW_PROGRAM_ADDRESS, getExplorerUrl } from './constants'
 import { rpc } from './rpc'
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from './token'
 
 const makeOfferDiscriminator = new Uint8Array([214, 98, 97, 35, 59, 12, 44, 178])
+const takeOfferDiscriminator = new Uint8Array([128, 156, 242, 207, 237, 192, 103, 240])
+const offerAccountDiscriminator = new Uint8Array([215, 88, 60, 71, 170, 162, 73, 229])
 
 const addressEncoder = getAddressEncoder()
+const base64Encoder = getBase64Encoder()
 const utf8Encoder = getUtf8Encoder()
 const u64Encoder = getU64Encoder()
+const u64Decoder = getU64Codec()
+const offerAccountCodec = getStructCodec([
+  ['discriminator', fixCodecSize(getBytesCodec(), 8)],
+  ['id', getU64Codec()],
+  ['maker', getAddressCodec()],
+  ['tokenMintA', getAddressCodec()],
+  ['tokenMintB', getAddressCodec()],
+  ['tokenBWantedAmount', getU64Codec()],
+  ['bump', getU8Codec()],
+])
 
 type MakeOfferParams = {
   makerAddress: string
@@ -33,6 +58,19 @@ type MakeOfferParams = {
   tokenAAmount: string
   tokenBMintAddress: string
   tokenBWantedAmount: string
+}
+
+type TakeOfferParams = {
+  offer: OfferViewModel
+  signAndSendTransaction: (transactionBytes: Uint8Array) => Promise<string>
+  takerAddress: string
+}
+
+type RpcProgramAccount = {
+  account: {
+    data: [string, string]
+  }
+  pubkey: string
 }
 
 function encodeMakeOfferInstructionData(
@@ -50,6 +88,18 @@ function encodeMakeOfferInstructionData(
     ...encodedOfferedAmount,
     ...encodedWantedAmount,
   ])
+}
+
+function encodeTakeOfferInstructionData() {
+  return new Uint8Array([...takeOfferDiscriminator])
+}
+
+function decodeBase64Bytes(encoded: string) {
+  return base64Encoder.encode(encoded)
+}
+
+function getTokenAccountAmountFromBytes(data: Uint8Array) {
+  return u64Decoder.decode(data.slice(64, 72))
 }
 
 export async function deriveOfferAddress(makerAddress: string, id: bigint) {
@@ -99,6 +149,38 @@ async function fetchMintOwnerProgram(mintAddress: string) {
   return response.value.owner
 }
 
+async function fetchTokenProgramsForMints(mintAddresses: string[]) {
+  const uniqueMintAddresses = [...new Set(mintAddresses)]
+  const mintAccounts = await rpc
+    .getMultipleAccounts(uniqueMintAddresses.map((mintAddress) => address(mintAddress)), {
+      encoding: 'base64',
+    })
+    .send()
+
+  const tokenPrograms = new Map<string, string>()
+
+  uniqueMintAddresses.forEach((mintAddress, index) => {
+    const accountInfo = mintAccounts.value[index]
+    if (accountInfo) {
+      tokenPrograms.set(mintAddress, accountInfo.owner)
+    }
+  })
+
+  return tokenPrograms
+}
+
+async function fetchMintDecimalsMap(mintAddresses: string[]) {
+  const uniqueMintAddresses = [...new Set(mintAddresses)]
+  const entries = await Promise.all(
+    uniqueMintAddresses.map(async (mintAddress) => [
+      mintAddress,
+      await fetchMintDecimals(mintAddress),
+    ] as const),
+  )
+
+  return new Map(entries)
+}
+
 function mapMakeOfferError(error: unknown) {
   const message =
     error instanceof Error && error.message
@@ -131,6 +213,10 @@ function mapMakeOfferError(error: unknown) {
   }
 
   return message
+}
+
+function mapTakeOfferError(error: unknown) {
+  return mapMakeOfferError(error)
 }
 
 export async function submitMakeOffer({
@@ -232,5 +318,180 @@ export async function submitMakeOffer({
     }
   } catch (error) {
     throw new Error(mapMakeOfferError(error))
+  }
+}
+
+export async function fetchOpenOffers(): Promise<OfferViewModel[]> {
+  const discriminator = bs58.encode(offerAccountDiscriminator)
+  const response = (await rpc
+    .getProgramAccounts(address(ESCROW_PROGRAM_ADDRESS), {
+      encoding: 'base64',
+      filters: [
+        {
+          memcmp: {
+            bytes: discriminator as never,
+            encoding: 'base58',
+            offset: 0n,
+          },
+        },
+      ],
+    })
+    .send()) as unknown as RpcProgramAccount[]
+
+  if (response.length === 0) {
+    return []
+  }
+
+  const decodedOffers = response.map((programAccount) => {
+    const accountBytes = decodeBase64Bytes(programAccount.account.data[0])
+    const decodedOffer = offerAccountCodec.decode(accountBytes)
+
+    return {
+      address: programAccount.pubkey,
+      id: decodedOffer.id,
+      maker: String(decodedOffer.maker),
+      requestedAmount: decodedOffer.tokenBWantedAmount,
+      tokenAMint: String(decodedOffer.tokenMintA),
+      tokenBMint: String(decodedOffer.tokenMintB),
+    }
+  })
+
+  const [tokenProgramsByMint, decimalsByMint] = await Promise.all([
+    fetchTokenProgramsForMints(
+      decodedOffers.flatMap((offer) => [offer.tokenAMint, offer.tokenBMint]),
+    ),
+    fetchMintDecimalsMap(
+      decodedOffers.flatMap((offer) => [offer.tokenAMint, offer.tokenBMint]),
+    ),
+  ])
+
+  const vaultAddresses = await Promise.all(
+    decodedOffers.map((offer) => {
+      const tokenProgram = tokenProgramsByMint.get(offer.tokenAMint)
+      if (!tokenProgram) {
+        throw new Error(`Token program not found for mint ${offer.tokenAMint}`)
+      }
+
+      return deriveAssociatedTokenAddress(
+        offer.address,
+        offer.tokenAMint,
+        tokenProgram,
+      )
+    }),
+  )
+
+  const vaultAccounts = await rpc
+    .getMultipleAccounts(vaultAddresses.map((vaultAddress) => address(vaultAddress)), {
+      encoding: 'base64',
+    })
+    .send()
+
+  const hydratedOffers = decodedOffers.map((offer, index) => {
+      const vaultAccount = vaultAccounts.value[index]
+      const tokenProgram = tokenProgramsByMint.get(offer.tokenAMint)
+      const tokenADecimals = decimalsByMint.get(offer.tokenAMint)
+      const tokenBDecimals = decimalsByMint.get(offer.tokenBMint)
+
+      if (!vaultAccount || !tokenProgram || tokenADecimals == null || tokenBDecimals == null) {
+        return null
+      }
+
+      const offeredAmount = getTokenAccountAmountFromBytes(
+        new Uint8Array(decodeBase64Bytes(vaultAccount.data[0])),
+      )
+
+      if (offeredAmount <= 0n) {
+        return null
+      }
+
+      return {
+        address: offer.address,
+        id: offer.id,
+        maker: offer.maker,
+        offeredAmount,
+        offeredAmountUi: formatTokenAmount(offeredAmount, tokenADecimals),
+        requestedAmount: offer.requestedAmount,
+        requestedAmountUi: formatTokenAmount(offer.requestedAmount, tokenBDecimals),
+        tokenAMint: offer.tokenAMint,
+        tokenBMint: offer.tokenBMint,
+        tokenProgram,
+      } satisfies OfferViewModel
+    })
+
+  return hydratedOffers.filter((offer) => offer !== null)
+}
+
+export async function submitTakeOffer({
+  offer,
+  signAndSendTransaction,
+  takerAddress,
+}: TakeOfferParams): Promise<SubmittedTransaction> {
+  try {
+    const taker = address(takerAddress)
+    const maker = address(offer.maker)
+    const tokenMintA = address(offer.tokenAMint)
+    const tokenMintB = address(offer.tokenBMint)
+    const tokenProgram = address(offer.tokenProgram)
+    const offerAddress = address(offer.address)
+
+    const [tokenBMintOwnerProgram, takerTokenAccountA, takerTokenAccountB, makerTokenAccountB, vaultAddress] =
+      await Promise.all([
+        fetchMintOwnerProgram(tokenMintB),
+        deriveAssociatedTokenAddress(taker, tokenMintA, tokenProgram),
+        deriveAssociatedTokenAddress(taker, tokenMintB, tokenProgram),
+        deriveAssociatedTokenAddress(maker, tokenMintB, tokenProgram),
+        deriveAssociatedTokenAddress(offerAddress, tokenMintA, tokenProgram),
+      ])
+
+    if (tokenBMintOwnerProgram !== tokenProgram) {
+      throw new Error('Offer mints use incompatible token programs.')
+    }
+
+    const instruction = {
+      accounts: [
+        { address: taker, role: AccountRole.WRITABLE_SIGNER },
+        { address: maker, role: AccountRole.WRITABLE },
+        { address: tokenMintA, role: AccountRole.READONLY },
+        { address: tokenMintB, role: AccountRole.READONLY },
+        { address: takerTokenAccountA, role: AccountRole.WRITABLE },
+        { address: takerTokenAccountB, role: AccountRole.WRITABLE },
+        { address: makerTokenAccountB, role: AccountRole.WRITABLE },
+        { address: offerAddress, role: AccountRole.WRITABLE },
+        { address: vaultAddress, role: AccountRole.WRITABLE },
+        {
+          address: address(ASSOCIATED_TOKEN_PROGRAM_ADDRESS),
+          role: AccountRole.READONLY,
+        },
+        { address: tokenProgram, role: AccountRole.READONLY },
+        {
+          address: address('11111111111111111111111111111111'),
+          role: AccountRole.READONLY,
+        },
+      ],
+      data: encodeTakeOfferInstructionData(),
+      programAddress: address(ESCROW_PROGRAM_ADDRESS),
+    }
+
+    const { value: latestBlockhash } = await rpc
+      .getLatestBlockhash({ commitment: 'confirmed' })
+      .send()
+
+    const transactionMessage = pipe(
+      createTransactionMessage({ version: 'legacy' }),
+      (message) => setTransactionMessageFeePayer(taker, message),
+      (message) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, message),
+      (message) => appendTransactionMessageInstruction(instruction, message),
+    )
+
+    const transaction = compileTransaction(transactionMessage)
+    const wireTransaction = getTransactionEncoder().encode(transaction)
+    const signature = await signAndSendTransaction(new Uint8Array(wireTransaction))
+
+    return {
+      explorerUrl: getExplorerUrl(`/tx/${signature}`),
+      signature,
+    }
+  } catch (error) {
+    throw new Error(mapTakeOfferError(error))
   }
 }

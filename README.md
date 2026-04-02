@@ -37,12 +37,14 @@ This repository currently includes:
 - selected wallet persistence between reloads
 - wallet token account discovery from Devnet
 - first live `make_offer` flow foundation with custom form and transaction link output
+- on-chain open offers list fetched from program accounts
+- first live `take_offer` flow foundation with take action and transaction link output
 
 Next major steps:
 
 - harden `make_offer` with more edge-case coverage after live wallet testing
-- build `take_offer` flow
-- list open offers created through the frontend
+- harden `take_offer` with live wallet testing and edge cases
+- optionally scope offer listing to frontend-created offers only
 - add transaction success and error handling UX
 
 ## Program

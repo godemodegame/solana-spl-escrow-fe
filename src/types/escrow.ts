@@ -18,3 +18,16 @@ export type SubmittedTransaction = {
   explorerUrl: string
   signature: string
 }
+
+export type OfferViewModel = {
+  address: string
+  id: bigint
+  maker: string
+  offeredAmount: bigint
+  offeredAmountUi: string
+  requestedAmount: bigint
+  requestedAmountUi: string
+  tokenAMint: string
+  tokenBMint: string
+  tokenProgram: string
+}

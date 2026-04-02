@@ -7,6 +7,10 @@ import type { MakeOfferFormState, SubmittedTransaction } from '../../types/escro
 import { useWallet } from '../wallet/WalletContext'
 import { useWalletTokenAccounts } from './useWalletTokenAccounts'
 
+type MakeOfferFormProps = {
+  onOfferCreated?: () => void
+}
+
 const initialFormState: MakeOfferFormState = {
   selectedTokenAccountAddress: '',
   tokenAAmount: '',
@@ -14,7 +18,7 @@ const initialFormState: MakeOfferFormState = {
   tokenBAmount: '',
 }
 
-export function MakeOfferForm() {
+export function MakeOfferForm({ onOfferCreated }: MakeOfferFormProps) {
   const { account, connectedWallet, signAndSendTransaction } = useWallet()
   const { error: tokenAccountsError, isLoading, tokenAccounts } =
     useWalletTokenAccounts(account?.address ?? null)
@@ -72,6 +76,7 @@ export function MakeOfferForm() {
       })
 
       setSubmittedTransaction(transaction)
+      onOfferCreated?.()
       setFormState((currentState) => ({
         ...currentState,
         tokenAAmount: '',

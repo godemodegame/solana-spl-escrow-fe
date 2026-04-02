@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { MakeOfferForm } from './features/make-offer/MakeOfferForm'
+import { OffersList } from './features/offers/OffersList'
 import { WalletButton } from './features/wallet/WalletButton'
 import { useWallet } from './features/wallet/WalletContext'
 import { WalletModal } from './features/wallet/WalletModal'
@@ -8,6 +10,7 @@ import {
 } from './lib/solana/constants'
 
 function App() {
+  const [offersRefreshKey, setOffersRefreshKey] = useState(0)
   const { account, connectedWallet, error, isModalOpen, wallets, closeModal } =
     useWallet()
 
@@ -131,7 +134,12 @@ function App() {
               </div>
             </article>
 
-            <MakeOfferForm />
+            <MakeOfferForm
+              onOfferCreated={() =>
+                setOffersRefreshKey((currentValue) => currentValue + 1)
+              }
+            />
+            <OffersList refreshKey={offersRefreshKey} />
           </div>
         </section>
       </section>
