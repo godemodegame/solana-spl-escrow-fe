@@ -20,11 +20,11 @@ import {
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit'
-import bs58 from 'bs58'
 
 import type {
   OfferViewModel,
   SubmittedTransaction,
+  TrackedFrontendOffer,
   WalletTokenAccount,
 } from '../../types/escrow'
 import { formatTokenAmount, parseTokenAmount } from '../utils/amounts'
@@ -34,13 +34,11 @@ import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from './token'
 
 const makeOfferDiscriminator = new Uint8Array([214, 98, 97, 35, 59, 12, 44, 178])
 const takeOfferDiscriminator = new Uint8Array([128, 156, 242, 207, 237, 192, 103, 240])
-const offerAccountDiscriminator = new Uint8Array([215, 88, 60, 71, 170, 162, 73, 229])
+const trackedOffersStorageKey = 'spl-escrow-frontend-offers'
 
 const addressEncoder = getAddressEncoder()
-const base64Encoder = getBase64Encoder()
 const utf8Encoder = getUtf8Encoder()
 const u64Encoder = getU64Encoder()
-const u64Decoder = getU64Codec()
 const offerAccountCodec = getStructCodec([
   ['discriminator', fixCodecSize(getBytesCodec(), 8)],
   ['id', getU64Codec()],
@@ -66,13 +64,6 @@ type TakeOfferParams = {
   takerAddress: string
 }
 
-type RpcProgramAccount = {
-  account: {
-    data: [string, string]
-  }
-  pubkey: string
-}
-
 function encodeMakeOfferInstructionData(
   id: bigint,
   tokenAOfferedAmount: bigint,
@@ -95,11 +86,7 @@ function encodeTakeOfferInstructionData() {
 }
 
 function decodeBase64Bytes(encoded: string) {
-  return base64Encoder.encode(encoded)
-}
-
-function getTokenAccountAmountFromBytes(data: Uint8Array) {
-  return u64Decoder.decode(data.slice(64, 72))
+  return getBase64Encoder().encode(encoded)
 }
 
 export async function deriveOfferAddress(makerAddress: string, id: bigint) {
@@ -149,6 +136,62 @@ async function fetchMintOwnerProgram(mintAddress: string) {
   return response.value.owner
 }
 
+function isBrowser() {
+  return typeof window !== 'undefined'
+}
+
+function loadTrackedFrontendOffers(): TrackedFrontendOffer[] {
+  if (!isBrowser()) {
+    return []
+  }
+
+  const rawValue = window.localStorage.getItem(trackedOffersStorageKey)
+  if (!rawValue) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as TrackedFrontendOffer[]
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed.filter(
+      (entry) =>
+        entry &&
+        typeof entry.address === 'string' &&
+        typeof entry.createdAt === 'number',
+    )
+  } catch {
+    return []
+  }
+}
+
+function saveTrackedFrontendOffers(offers: TrackedFrontendOffer[]) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(trackedOffersStorageKey, JSON.stringify(offers))
+}
+
+function trackFrontendOffer(addressValue: string) {
+  const existingOffers = loadTrackedFrontendOffers()
+  const nextOffers = [
+    { address: addressValue, createdAt: Date.now() },
+    ...existingOffers.filter((offer) => offer.address !== addressValue),
+  ]
+
+  saveTrackedFrontendOffers(nextOffers.slice(0, 100))
+}
+
+function untrackFrontendOffer(addressValue: string) {
+  const existingOffers = loadTrackedFrontendOffers()
+  saveTrackedFrontendOffers(
+    existingOffers.filter((offer) => offer.address !== addressValue),
+  )
+}
+
 async function fetchTokenProgramsForMints(mintAddresses: string[]) {
   const uniqueMintAddresses = [...new Set(mintAddresses)]
   const mintAccounts = await rpc
@@ -176,6 +219,29 @@ async function fetchMintDecimalsMap(mintAddresses: string[]) {
       mintAddress,
       await fetchMintDecimals(mintAddress),
     ] as const),
+  )
+
+  return new Map(entries)
+}
+
+async function fetchVaultBalances(vaultAddresses: string[]) {
+  const entries = await Promise.all(
+    vaultAddresses.map(async (vaultAddress) => {
+      try {
+        const response = await rpc.getTokenAccountBalance(address(vaultAddress)).send()
+
+        return [
+          vaultAddress,
+          {
+            amount: BigInt(response.value.amount),
+            decimals: response.value.decimals,
+            uiAmountString: response.value.uiAmountString,
+          },
+        ] as const
+      } catch {
+        return [vaultAddress, null] as const
+      }
+    }),
   )
 
   return new Map(entries)
@@ -311,6 +377,7 @@ export async function submitMakeOffer({
     const signature = await signAndSendTransaction(
       new Uint8Array(wireTransaction),
     )
+    trackFrontendOffer(offerAddress)
 
     return {
       explorerUrl: getExplorerUrl(`/tx/${signature}`),
@@ -322,47 +389,46 @@ export async function submitMakeOffer({
 }
 
 export async function fetchOpenOffers(): Promise<OfferViewModel[]> {
-  const discriminator = bs58.encode(offerAccountDiscriminator)
-  const response = (await rpc
-    .getProgramAccounts(address(ESCROW_PROGRAM_ADDRESS), {
-      encoding: 'base64',
-      filters: [
-        {
-          memcmp: {
-            bytes: discriminator as never,
-            encoding: 'base58',
-            offset: 0n,
-          },
-        },
-      ],
-    })
-    .send()) as unknown as RpcProgramAccount[]
-
-  if (response.length === 0) {
+  const trackedOffers = loadTrackedFrontendOffers()
+  if (trackedOffers.length === 0) {
     return []
   }
 
-  const decodedOffers = response.map((programAccount) => {
-    const accountBytes = decodeBase64Bytes(programAccount.account.data[0])
+  const response = await rpc
+    .getMultipleAccounts(
+      trackedOffers.map((offer) => address(offer.address)),
+      { encoding: 'base64' },
+    )
+    .send()
+
+  if (response.value.length === 0) {
+    return []
+  }
+
+  const decodedOffers = response.value.flatMap((accountInfo, index) => {
+    if (!accountInfo) {
+      return []
+    }
+
+    const trackedOffer = trackedOffers[index]
+    const accountBytes = decodeBase64Bytes(accountInfo.data[0])
     const decodedOffer = offerAccountCodec.decode(accountBytes)
 
-    return {
-      address: programAccount.pubkey,
+    return [{
+      address: trackedOffer.address,
       id: decodedOffer.id,
       maker: String(decodedOffer.maker),
       requestedAmount: decodedOffer.tokenBWantedAmount,
       tokenAMint: String(decodedOffer.tokenMintA),
       tokenBMint: String(decodedOffer.tokenMintB),
-    }
+    }]
   })
 
   const [tokenProgramsByMint, decimalsByMint] = await Promise.all([
     fetchTokenProgramsForMints(
       decodedOffers.flatMap((offer) => [offer.tokenAMint, offer.tokenBMint]),
     ),
-    fetchMintDecimalsMap(
-      decodedOffers.flatMap((offer) => [offer.tokenAMint, offer.tokenBMint]),
-    ),
+    fetchMintDecimalsMap(decodedOffers.map((offer) => offer.tokenBMint)),
   ])
 
   const vaultAddresses = await Promise.all(
@@ -380,25 +446,18 @@ export async function fetchOpenOffers(): Promise<OfferViewModel[]> {
     }),
   )
 
-  const vaultAccounts = await rpc
-    .getMultipleAccounts(vaultAddresses.map((vaultAddress) => address(vaultAddress)), {
-      encoding: 'base64',
-    })
-    .send()
+  const vaultBalances = await fetchVaultBalances(vaultAddresses)
 
   const hydratedOffers = decodedOffers.map((offer, index) => {
-      const vaultAccount = vaultAccounts.value[index]
+      const vaultBalance = vaultBalances.get(vaultAddresses[index])
       const tokenProgram = tokenProgramsByMint.get(offer.tokenAMint)
-      const tokenADecimals = decimalsByMint.get(offer.tokenAMint)
       const tokenBDecimals = decimalsByMint.get(offer.tokenBMint)
 
-      if (!vaultAccount || !tokenProgram || tokenADecimals == null || tokenBDecimals == null) {
+      if (!vaultBalance || !tokenProgram || tokenBDecimals == null) {
         return null
       }
 
-      const offeredAmount = getTokenAccountAmountFromBytes(
-        new Uint8Array(decodeBase64Bytes(vaultAccount.data[0])),
-      )
+      const offeredAmount = vaultBalance.amount
 
       if (offeredAmount <= 0n) {
         return null
@@ -409,7 +468,9 @@ export async function fetchOpenOffers(): Promise<OfferViewModel[]> {
         id: offer.id,
         maker: offer.maker,
         offeredAmount,
-        offeredAmountUi: formatTokenAmount(offeredAmount, tokenADecimals),
+        offeredAmountUi:
+          vaultBalance.uiAmountString ??
+          formatTokenAmount(offeredAmount, vaultBalance.decimals),
         requestedAmount: offer.requestedAmount,
         requestedAmountUi: formatTokenAmount(offer.requestedAmount, tokenBDecimals),
         tokenAMint: offer.tokenAMint,
@@ -418,7 +479,14 @@ export async function fetchOpenOffers(): Promise<OfferViewModel[]> {
       } satisfies OfferViewModel
     })
 
-  return hydratedOffers.filter((offer) => offer !== null)
+  const openOffers = hydratedOffers.filter((offer) => offer !== null)
+  const openOfferAddresses = new Set(openOffers.map((offer) => offer.address))
+
+  saveTrackedFrontendOffers(
+    trackedOffers.filter((offer) => openOfferAddresses.has(offer.address)),
+  )
+
+  return openOffers
 }
 
 export async function submitTakeOffer({
@@ -486,6 +554,7 @@ export async function submitTakeOffer({
     const transaction = compileTransaction(transactionMessage)
     const wireTransaction = getTransactionEncoder().encode(transaction)
     const signature = await signAndSendTransaction(new Uint8Array(wireTransaction))
+    untrackFrontendOffer(offer.address)
 
     return {
       explorerUrl: getExplorerUrl(`/tx/${signature}`),

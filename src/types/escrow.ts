@@ -31,3 +31,8 @@ export type OfferViewModel = {
   tokenBMint: string
   tokenProgram: string
 }
+
+export type TrackedFrontendOffer = {
+  address: string
+  createdAt: number
+}
