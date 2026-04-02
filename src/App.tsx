@@ -11,7 +11,7 @@ import {
 
 function App() {
   const [offersRefreshKey, setOffersRefreshKey] = useState(0)
-  const { account, connectedWallet, error, isModalOpen, wallets, closeModal } =
+  const { account, connectedWallet, error, isModalOpen, closeModal } =
     useWallet()
 
   return (

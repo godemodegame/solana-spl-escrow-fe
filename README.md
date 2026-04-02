@@ -16,6 +16,11 @@ This project is being built for the Superteam Ukraine bounty and uses:
 - Network: Solana Devnet
 - Program address: `4g5EN9Sk7wEcZqfjdjDtvq7T9u5YUrBKTe23fVJoL8yy`
 
+## Test Assets Used
+
+- Token A mint: `GWENFD94kZzFfkMfGksb2b98QyRrrx4RXKpwejEvd7fY`
+- Token B mint: `BbxsHnkVkWhMQwaNZcAE3Gs4P5mypc9yY4EqVyiPgZRq`
+
 ## Features
 
 - Custom wallet connection modal without third-party wallet UI
@@ -74,6 +79,22 @@ npm run build
 8. Refresh or use the offers list to find the created offer.
 9. Take the offer from another wallet or account that has the required Token B balance.
 
+## Example Devnet Transactions
+
+- `make_offer`:
+  [2DPDcA7r4vobC9D84kadXAVVt7B4aT8uJqDiEkT2nNpTxGCbci144EZ1iq8pKopLtM4dk7qNP3CqhGBTBAVZ4oBH](https://explorer.solana.com/tx/2DPDcA7r4vobC9D84kadXAVVt7B4aT8uJqDiEkT2nNpTxGCbci144EZ1iq8pKopLtM4dk7qNP3CqhGBTBAVZ4oBH?cluster=devnet)
+- `take_offer`:
+  [2gAYLnB6Ehz2tgoAFdmsMDV6vSDmmzuhN6LmM7KinnZ6KDJKqmNLdUgd6SYomeq4BYf4A5kSdjAKFmMePKXB4c8f](https://explorer.solana.com/tx/2gAYLnB6Ehz2tgoAFdmsMDV6vSDmmzuhN6LmM7KinnZ6KDJKqmNLdUgd6SYomeq4BYf4A5kSdjAKFmMePKXB4c8f?cluster=devnet)
+
+## Live Deployment
+
+- [solana-spl-escrow-fe.vercel.app](https://solana-spl-escrow-fe.vercel.app)
+
+## Tested Wallets
+
+- `4uouh5krA7rvPwhEPdXHHn8btqYkwQ2sFmdFbbM5kW4j`
+- `Ffvq4ZjYybwwPKCgDNj2Gbre4zyWXTNqppDkfAa5beBV`
+
 ## Scripts
 
 - `npm run dev` starts the Vite development server
@@ -89,30 +110,12 @@ npm run build
 
 ## Submission Checklist
 
-Before submitting, update this README with:
+This README now includes:
 
-- your live deployment link
-- the wallets you tested
-- at least one successful Devnet transaction link
-- any final setup notes needed by reviewers
-
-Suggested section format:
-
-```md
-## Tested Wallets
-
-- Phantom
-- Backpack
-
-## Live Deployment
-
-- https://your-app-url.example
-
-## Example Devnet Transactions
-
-- make_offer: https://explorer.solana.com/tx/<signature>?cluster=devnet
-- take_offer: https://explorer.solana.com/tx/<signature>?cluster=devnet
-```
+- live deployment link
+- tested wallet addresses
+- successful Devnet transaction links for `make_offer` and `take_offer`
+- local setup and validation steps
 
 ## Current Status
 
@@ -122,4 +125,11 @@ The codebase currently passes:
 - `npm run lint`
 - `npm run build`
 
-Manual Devnet transaction testing and final submission metadata still need to be completed.
+Confirmed so far:
+
+- wallet connection works in the browser
+- token account discovery works with Devnet SPL tokens
+- `make_offer` has been executed successfully on Devnet
+- `take_offer` has been executed successfully on Devnet
+
+The project is ready for live review on Devnet.
